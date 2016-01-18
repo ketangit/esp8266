@@ -11,14 +11,14 @@
 #define PING_TIME           60000   // 1 minute
 #define CHECK_GARAGE_TIME   600000  // 10 minutes
 #define LED_FLASH_TIME      200     // 0.2 seconds
-#define LEDPIN        13        // LED Output pin
+#define LEDPIN        16        // LED Output pin
 #define GRGE_1        12        // Garage Door - 1 input pin
 #define GRGE_2        14        // Garage Door - 2 input pin
-#define GRGE_3        16        // Garage Door - 3 input pin
+#define GRGE_3        13        // Garage Door - 3 input pin
 
 const char MQTT_SERVER[] PROGMEM    = "ENTER_MQTT_IP";
-const char MQTT_USERNAME[] PROGMEM  = "";
-const char MQTT_PASSWORD[] PROGMEM  = "";
+const char MQTT_USERNAME[] PROGMEM  = "ENTER_MQTT_USR";
+const char MQTT_PASSWORD[] PROGMEM  = "ENTER_MQTT_PWD";
 
 String deviceName = "GARAGE";
 char szBuffer[100] = "\0";
@@ -64,12 +64,14 @@ void setup() {
   //Serial.println(WiFi.localIP());
 
   mqttConnect();
-  sprintf(szBuffer, "SENSOR/%s/STATUS", deviceName.c_str());
-  sendMessage(szBuffer, "STARTED");
-
+  
   timer.oscillate(LEDPIN, LED_FLASH_TIME, HIGH);
   timer.every(PING_TIME, pingMQTTMessage, (void*)0);
   timer.every(CHECK_GARAGE_TIME, callbakGarageDoorStatus, (void*)0);
+
+  sprintf(szBuffer, "SENSOR/%s/STATUS", deviceName.c_str());
+  sendMessage(szBuffer, "STARTED");
+  //Serial.println(szBuffer);
 }
 
 void loop() {
@@ -79,6 +81,8 @@ void loop() {
 }
 
 void callbackGarage1(bool state, uint8_t pin) {
+  //sprintf(szBuffer, "PORT:%u=%u", pin, state);
+  //Serial.println(szBuffer);
   actionGarage(state, 81, 0);
   if(state == LOW) {
     garage1Iteration = 0;
@@ -86,6 +90,8 @@ void callbackGarage1(bool state, uint8_t pin) {
 }
 
 void callbackGarage2(bool state, uint8_t pin) {
+  //sprintf(szBuffer, "PORT:%u=%u", pin, state);
+  //Serial.println(szBuffer);
   actionGarage(state, 82, 0);
   if(state == LOW) {
     garage2Iteration = 0;
@@ -93,6 +99,8 @@ void callbackGarage2(bool state, uint8_t pin) {
 }
 
 void callbackGarage3(bool state, uint8_t pin) {
+  //sprintf(szBuffer, "PORT:%u=%u", pin, state);
+  //Serial.println(szBuffer);
   actionGarage(state, 83, 0);
   if(state == LOW) {
     garage3Iteration = 0;
