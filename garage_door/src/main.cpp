@@ -6,14 +6,6 @@
 #include <Debounce.h> // https://github.com/arnebech/Debounce (copied in lib folder)
 #include <Timer.h>    // https://github.com/JChristensen/Timer/tree/v2.1 (copied in lib folder)
 
-/*
-  To Program, connect the borad TX->RX, RX->TX, VCC->VCC, GND->GND
-   Press both (Reset & Flash) buttons at the sametime,
-   then Release Reset first and then Flash button
-   then Upload the this program
-   https://arduino-esp8266.readthedocs.io/
-*/
-
 #define WIFI_SSID "ENTER_SSID"            // "ENTER_SSID"
 #define WIFI_PASS "ENTER_SSID_PWD"        // "ENTER_SSID_PWD"
 #define MQTT_HOST IPAddress(127, 0, 0, 1) // "ENTER_MQTT_IP"
