@@ -1,38 +1,39 @@
 #include <Arduino.h>
 #include <ESP8266WiFi.h>
 #include <Adafruit_NeoPixel.h>
+#include "Adafruit_MQTT.h"
 #include <Adafruit_MQTT_Client.h>
 #include <Debounce.h> // https://github.com/arnebech/Debounce (copied in lib folder)
 #include <Timer.h>    // https://github.com/JChristensen/Timer/tree/v2.1 (copied in lib folder)
 
-#define WIFI_SSID "" // "ENTER_SSID"
-#define WIFI_PASS "" // "ENTER_SSID_PWD"
+#define WIFI_SSID "ENTER_SSID"
+#define WIFI_PASS "ENTER_SSID_PWD"
 
-String deviceName = "GARAGE-1";
-const char MQTT_SERVER[] PROGMEM = "";   // "ENTER_MQTT_IP";
-const char MQTT_USERNAME[] PROGMEM = ""; // "ENTER_MQTT_USR";
-const char MQTT_PASSWORD[] PROGMEM = ""; // "ENTER_MQTT_PWD";
-
+#define MQTT_SERVER "ENTER_MQTT_IP"
+#define MQTT_USERNAME "ENTER_MQTT_USR"
+#define MQTT_PASSWORD "ENTER_MQTT_PWD"
 #define MQTT_PORT 1883
-#define GRGE_1_PIN 12 // Garage Door - 1 input pin
-#define GRGE_2_PIN 14 // Garage Door - 2 input pin
-#define GRGE_3_PIN 13 // Garage Door - 3 input pin
 
-//#define BUILTIN_LED_PIN 2  // DEMO
-#define STATUS_LED 16        // Status LED Output pin
-#define LED_FLASH_TIME 400   // 0.4 seconds
-#define MQTT_PING_TIME 60000 // 1 minute
+#define GRGE_1_PIN 13           // D7, GPIO13 Garage Door - 1 input pin
+#define GRGE_2_PIN 12           // D6, GPIO12 Garage Door - 2 input pin
+#define GRGE_3_PIN 14           // D5, GPIO14 Garage Door - 3 input pin
 
-#define GRGE_LED_3 0           // Garage Door - 3 LED
-#define GRGE_LED_2 1           // Garage Door - 2 LED
-#define GRGE_LED_1 2           // Garage Door - 1 LED
-#define GDOOR_OPEN_TIME 300000 // 5 minutes
+#define STATUS_LED 2            // D4, GPIO2 Status LED Output pin
+#define LED_FLASH_TIME 500      // 0.5 seconds
+#define MQTT_PING_TIME 60000    // 1 minute
 
-#define PIN 2 // WS Led pin
-#define NUMPIXELS 3
+#define GRGE_LED_1 0            // Garage Door - 1 WS2812B LED
+#define GRGE_LED_2 1            // Garage Door - 2 WS2812B LED
+#define GRGE_LED_3 2            // Garage Door - 3 WS2812B LED
+#define GDOOR_OPEN_TIME 300000  // 5 minutes
+
+#define PIN 4                   // D2, GPIO4 WS2812B Led pin
+#define NUMPIXELS 3             // Number of Led for each Garage
+
+String deviceName = "GARAGE";
 
 char szBuffer[100] = "\0";
-char szState[30] = "\0";
+char szState[45] = "\0";
 int8_t doorOpenTimerArray[3] = {0};
 int doorOpenTotalTime[3] = {0};
 
@@ -50,24 +51,28 @@ void mqttConnect();
 
 void setup()
 {
-  //Serial.begin(115200);
-  //while (!Serial)
-  //  ; // wait for serial attach
-  //Serial.println("Initializing...");
-  //Serial.flush();
-
   pinMode(STATUS_LED, OUTPUT);
   pinMode(GRGE_1_PIN, INPUT_PULLUP);
   pinMode(GRGE_2_PIN, INPUT_PULLUP);
   pinMode(GRGE_3_PIN, INPUT_PULLUP);
 
+  // Serial.begin(115200);
+  // delay(10);
+  // while (!Serial)
+  //   ; // wait for serial attach
+  // Serial.println("Initializing...");
+  // Serial.flush();
+
   WiFi.begin(WIFI_SSID, WIFI_PASS);
   while (WiFi.status() != WL_CONNECTED)
   {
     delay(500);
+    Serial.print(".");
   }
-
-  timer.oscillate(STATUS_LED, LED_FLASH_TIME, HIGH);
+  Serial.println();
+  Serial.println("Connected, IP address: ");
+  Serial.println(WiFi.localIP());
+  
   timer.every(MQTT_PING_TIME, pingMQTTMessage, (void *)0);
 
   strip.begin();
@@ -83,6 +88,8 @@ void setup()
   debounce.addInput(GRGE_1_PIN, INPUT_PULLUP, callbackGarage);
   debounce.addInput(GRGE_2_PIN, INPUT_PULLUP, callbackGarage);
   debounce.addInput(GRGE_3_PIN, INPUT_PULLUP, callbackGarage);
+
+  timer.oscillate(STATUS_LED, LED_FLASH_TIME, LOW);
 }
 
 void loop()
@@ -101,6 +108,7 @@ void pingMQTTMessage(void *context)
 
 void sendMessage(String topic, String message)
 {
+  Serial.println(topic + " " + message);
   mqttClient.publish((char *)topic.c_str(), (char *)message.c_str());
 }
 
@@ -110,18 +118,18 @@ void callbackGarage(bool state, uint8_t pin)
   uint8_t doorNum = 0;
   if (pin == GRGE_1_PIN)
   {
-    doorNum = 81;
-    ledNum = GRGE_LED_1; // 2
+    doorNum = 1;
+    ledNum = GRGE_LED_1;
   }
   else if (pin == GRGE_2_PIN)
   {
-    doorNum = 82;
-    ledNum = GRGE_LED_2; // 1
+    doorNum = 2;
+    ledNum = GRGE_LED_2;
   }
   else if (pin == GRGE_3_PIN)
   {
-    doorNum = 83;
-    ledNum = GRGE_LED_3; // 0
+    doorNum = 3;
+    ledNum = GRGE_LED_3;
   }
   if (state)
   {
@@ -135,8 +143,8 @@ void callbackGarage(bool state, uint8_t pin)
     timer.stop(doorOpenTimerArray[ledNum]);
   }
   strip.show();
-  sprintf(szBuffer, "SENSOR/%s/PORT/%u", deviceName.c_str(), doorNum);
-  sprintf(szState, "%s", (state ? "Open" : "Close"));
+  sprintf(szBuffer, "SENSOR/%s/DOOR/%u", deviceName.c_str(), doorNum);
+  sprintf(szState, "Garage Door %u => %s", doorNum, (state ? "Open" : "Close"));
   sendMessage(szBuffer, szState);
 }
 
@@ -147,35 +155,45 @@ void callbackDoorOpen(void *context)
   uint8_t doorNum = 0;
   if (pin == GRGE_1_PIN)
   {
-    doorNum = 81;
-    ledNum = GRGE_LED_1; // 2
+    doorNum = 1;
+    ledNum = GRGE_LED_1;
   }
   else if (pin == GRGE_2_PIN)
   {
-    doorNum = 82;
-    ledNum = GRGE_LED_2; // 1
+    doorNum = 2;
+    ledNum = GRGE_LED_2;
   }
   else if (pin == GRGE_3_PIN)
   {
-    doorNum = 83;
-    ledNum = GRGE_LED_3; // 0
+    doorNum = 3;
+    ledNum = GRGE_LED_3;
   }
   doorOpenTotalTime[ledNum] = doorOpenTotalTime[ledNum] + (GDOOR_OPEN_TIME / 60000);
-  sprintf(szBuffer, "ALERT/%s/PORT/%u", deviceName.c_str(), doorNum);
-  sprintf(szState, "Open for %u minutes", doorOpenTotalTime[ledNum]);
+  sprintf(szBuffer, "SENSOR/%s/DOOR/%u", deviceName.c_str(), doorNum);
+  sprintf(szState, "Garage Door %u => Open for %u minutes", doorNum, doorOpenTotalTime[ledNum]);
   sendMessage(szBuffer, szState);
 }
 
 void mqttConnect()
 {
   int8_t ret;
+  uint8_t retries = 3;
   if (mqttClient.connected())
   {
     return;
   }
+  Serial.print("Connecting to MQTT... ");
   while ((ret = mqttClient.connect()) != 0)
   { // connect will return 0 for connected
+    Serial.println(mqttClient.connectErrorString(ret));
+    Serial.println("Retrying MQTT connection in 10 seconds...");
     mqttClient.disconnect();
-    delay(5000); // wait 5 seconds
+    delay(10000); // wait 10 seconds
+    retries--;
+    if (retries == 0) {
+      // basically die and wait for WDT to reset me
+      while (1);
+    }
   }
+  Serial.println("MQTT Connected!");
 }
